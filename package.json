@@ -1,0 +1,18 @@
+{
+  "name": "polza-outreach",
+  "version": "1.0.0",
+  "description": "B2B lead collection and personalization pipeline for Polza Agency",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "start:limit": "node index.js --limit 20"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "cheerio": "^1.0.0",
+    "csv-writer": "^1.6.0",
+    "dotenv": "^16.4.5",
+    "node-fetch": "^3.3.2"
+  }
+}

@@ -1,0 +1,56 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Runtime data
+data/
+*.db
+*.db-journal
+*.db-wal
+
+# Vector indices
+*.dat
+*.hnsw
+
+# Local model weights (do not commit GGUFs)
+*.gguf
+models/
+
+# Backups (generated at runtime)
+backups/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE / tool configs (contain local paths)
+.vscode/settings.json
+.idea/
+.roo/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+pino-*.log
+
+# Turbo
+.turbo/
+
+# Test coverage
+coverage/
+
+# Temp
+tmp/
+.tmp/
+*.vsix
