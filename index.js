@@ -5,6 +5,7 @@ import { parseSite, normaliseUrl } from './src/parsers/site.js';
 import { validateEmail, buildFallbackEmail } from './src/enrichers/email.js';
 import { getPersonalization } from './src/enrichers/claude.js';
 import { dedupeByName } from './src/utils/dedupe.js';
+import { nameFilter, fullFilter } from './src/utils/icp.js';
 import { writeLeads } from './src/utils/csv.js';
 import { sleep, randomSleep } from './src/utils/sleep.js';
 
@@ -96,7 +97,7 @@ async function step2_resolveWebsites(companies) {
     if (!website) console.log(`   ⚠️  Сайт не найден в профиле HH`);
 
     result.push({ ...c, website: website || null });
-    await sleep(1500);
+    await randomSleep(1500, 3000);
   }
 
   return result;
@@ -238,19 +239,40 @@ async function main() {
     process.exit(0);
   }
 
-  companies = await step2_resolveWebsites(companies);
-  // Keep only companies where we found a website
+  // Pre-filter by company name — skip obvious B2C before wasting site requests
+  const preFiltered = companies.filter((c) => {
+    const { pass, reason } = nameFilter(c);
+    if (!pass) console.log(`🚫 ICP pre-filter: ${c.company_name} — ${reason}`);
+    return pass;
+  });
+  console.log(`\n   После ICP pre-filter: ${preFiltered.length} / ${companies.length}`);
+
+  companies = await step2_resolveWebsites(preFiltered);
   const withSites = companies.filter((c) => c.website);
   console.log(`\n   Компании с сайтом: ${withSites.length} / ${companies.length}`);
 
-  const withEmails  = await step3_parseSites(withSites);
-  const validated   = await step4_validateEmails(withEmails);
+  const withSiteData = await step3_parseSites(withSites);
+
+  // Full ICP filter — now we have description from the site
+  const icpPassed = withSiteData.filter((c) => {
+    const { pass, reason } = fullFilter(c);
+    if (!pass) console.log(`🚫 ICP full-filter: ${c.company_name} — ${reason}`);
+    return pass;
+  });
+  console.log(`\n   После полного ICP-фильтра: ${icpPassed.length} / ${withSiteData.length}`);
+
+  const validated   = await step4_validateEmails(icpPassed);
   const personalized = await step5_personalize(validated);
 
   const leads = personalized.map(toLeadRow);
   await writeLeads(leads);
 
+  const emailFromSite = leads.filter(l => l.email_source === 'сайт').length;
+  const emailGuessed  = leads.filter(l => l.email_source === 'угадан').length;
+  const emailValid    = leads.filter(l => l.email_valid === 'да').length;
+
   console.log(`\n🎉 Готово! ${leads.length} лидов записано в output/leads.csv`);
+  console.log(`   📧 Email с сайта: ${emailFromSite} | угадан: ${emailGuessed} | валидных MX: ${emailValid}`);
 }
 
 main().catch((err) => {

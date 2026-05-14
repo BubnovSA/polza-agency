@@ -8,21 +8,22 @@ const client = new Anthropic();
  * @param {{company_name: string, signal: string, site_text: string}} company
  * @returns {string}
  */
-function buildPrompt({ company_name, signal, site_text }) {
+function buildPrompt({ company_name, signal, site_text, description }) {
+  const context = description || site_text || '';
   return `Компания: ${company_name}
-Сигнал: ${signal}
-Текст с сайта: ${(site_text || '').slice(0, 1500)}
+Чем занимается: ${context.slice(0, 800)}
+Сигнал с HH: ${signal}
 
-Напиши 1-2 предложения персонализации для холодного B2B письма от лица аутрич-агентства.
+Напиши персонализацию для холодного B2B письма. Строго 2 предложения, максимум 40 слов суммарно.
 
-Требования:
-- Используй конкретный факт о компании ИЛИ сигнал из вакансии
-- Объясни, почему именно им нужен email-аутрич прямо сейчас
-- Запрещено: "ведущая компания", "динамично развивается", "лидер рынка", "активно развивается"
-- Запрещено: общие слова без привязки к конкретной ситуации компании
-- Только конкретика и логика "сигнал → потребность → решение"
+Правила:
+- Предложение 1: конкретный факт из описания компании — что они делают, кто их клиенты, какой продукт. НЕ упоминай вакансию.
+- Предложение 2: одна конкретная причина почему им нужен email-аутрич именно сейчас.
+- Запрещено начинать с: "Вижу", "Я вижу", "Это означает", "Понимаю"
+- Запрещено: "ведущая компания", "динамично", "лидер рынка", "масштабировать воронку"
+- Запрещено: упоминать название вакансии или слово "руководитель"
 
-Формат: просто текст, 1-2 предложения, без кавычек и markdown.`;
+Формат: просто текст, без кавычек и markdown.`;
 }
 
 /**
@@ -36,7 +37,12 @@ async function callClaude(company) {
     max_tokens: 200,
     messages: [{ role: 'user', content: buildPrompt(company) }],
   });
-  return response.content[0].text.trim();
+  const text = response.content[0].text.trim();
+  // If Claude couldn't generate (no description, garbled text) — fall back to signal
+  if (text.toLowerCase().startsWith('извините') || text.toLowerCase().startsWith('к сожалению')) {
+    return null;
+  }
+  return text;
 }
 
 /**
@@ -46,7 +52,8 @@ async function callClaude(company) {
  */
 export async function getPersonalization(company) {
   try {
-    return await callClaude(company);
+    const result = await callClaude(company);
+    return result || company.signal;
   } catch (err) {
     console.log(`⚠️  Claude error (${company.company_name}): ${err.message} — используем сигнал`);
     return company.signal;
